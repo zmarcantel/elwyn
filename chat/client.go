@@ -2,6 +2,7 @@ package chat
 
 import (
 	"io"
+	"time"
 
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/go.net/websocket"
@@ -12,11 +13,12 @@ const (
 )
 
 type Client struct {
-	ID       string
-	Username string
-	Socket   *websocket.Conn
-	Receive  chan *Message
-	Hangup   chan bool
+	ID        string
+	Username  string
+	Socket    *websocket.Conn
+	Receive   chan *Message
+	Hangup    chan bool
+	Heartbeat chan *Message
 }
 
 func (self *Client) Listen(lock chan error, done chan *Client) {
@@ -48,10 +50,20 @@ func (self *Client) Read(lock chan error) {
 		lock <- err
 		return
 	}
-
-	logger.Printf("Received message from: %s\n", self.ID)
 	msg.AuthorID = self.ID
-	self.Receive <- &msg
+	msg.Owner = self
+
+	switch msg.Action {
+	case "heartbeat":
+		logger.Printf("Received Heartbeat: %s\n", self.ID)
+		self.Heartbeat <- &msg
+		break
+
+	default:
+		logger.Printf("Received message from: %s\n", self.ID)
+		self.Receive <- &msg
+		break
+	}
 }
 
 func (self *Client) Write(lock chan error, msg *Message) {
@@ -70,6 +82,29 @@ func (self *Client) Write(lock chan error, msg *Message) {
 	}
 }
 
+func (self *Client) Ping(lock chan error) {
+	self.Write(lock, &Message{
+		Action: "heartbeat",
+		Author: "server",
+		Body:   "ping",
+	})
+}
+
+func (self *Client) PingPong(lock chan error, serv *Server) {
+	go func(server *Server) {
+		for _ = range time.Tick(5 * time.Second) {
+			self.Ping(lock)
+
+			msg := <-self.Heartbeat
+
+			if msg.Body != "pong" {
+				logger.Errorf("Invalid Heartbeat From: %s\n\tReceived: %s\n\tExpected: pong\n", self.ID, msg.Body)
+				server.Leave <- self
+			}
+		}
+	}(serv)
+}
+
 func NewClient(sock *websocket.Conn, pipe chan *Message) *Client {
 	if sock == nil {
 		logger.Errorln("Received nil socket")
@@ -77,9 +112,10 @@ func NewClient(sock *websocket.Conn, pipe chan *Message) *Client {
 	}
 
 	return &Client{
-		ID:      uuid.New(),
-		Socket:  sock,
-		Receive: pipe,
-		Hangup:  make(chan bool, 0), // blocks until read
+		ID:        uuid.New(),
+		Socket:    sock,
+		Receive:   pipe,
+		Hangup:    make(chan bool, 0), // blocks until read
+		Heartbeat: make(chan *Message, 0),
 	}
 }

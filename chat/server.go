@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	DEFAULT_ENTRANCE_BUFFER int = 10
-	DEFAULT_MESSAGE_BUFFER  int = 50
+	DEFAULT_ENTRANCE_BUFFER  int = 10
+	DEFAULT_MESSAGE_BUFFER   int = 50
+	DEFAULT_HEARTBEAT_BUFFER int = 100
 )
 
 var server *Server
@@ -66,13 +67,14 @@ func (self *Server) Listen(lock chan error, port int) {
 			case joining := <-self.Join:
 				self.Clients[joining.ID] = joining
 				logger.Printf("New client: %s\n", joining.ID)
+				joining.PingPong(lock, self)
 				break
 
 			case leaving := <-self.Leave:
 				delete(self.Clients, leaving.ID)
 				delete(self.Users, leaving.Username)
 				logger.Printf("Signing off: %s\n", leaving.ID)
-				self.Broadcast(lock, &Message{
+				self.Broadcast(&Message{
 					Action: "message",
 					Author: "server",
 					Body:   "<small><i>" + leaving.Username + "</i></small> has left the room",
@@ -83,19 +85,16 @@ func (self *Server) Listen(lock chan error, port int) {
 				if data.Action == "join" {
 					var client = self.Clients[data.AuthorID]
 					var res, created = checkNotExisting(self.Users, data.Author, client)
+					self.AnnounceJoinToRoom(data, client)
 					if created {
-						self.Broadcast(lock, &Message{
-							Action: "message",
-							Author: "server",
-							Body:   "<small><i>" + data.Author + "</i></small> has joined the room",
-						})
+
 					}
 					client.Write(lock, res)
 					break
 				}
 
 				logger.Println("Broadcasting message")
-				self.Broadcast(lock, data)
+				self.Broadcast(data)
 				break
 
 			case err := <-self.Error:
@@ -106,6 +105,21 @@ func (self *Server) Listen(lock chan error, port int) {
 	}()
 
 	lock <- http.ListenAndServe(":"+strconv.Itoa(port), nil)
+}
+
+func (self *Server) Broadcast(msg *Message) {
+	for _, client := range self.Clients {
+		msg.Mine = (msg.AuthorID == client.ID)
+		client.Write(self.Error, msg)
+	}
+}
+
+func (self *Server) AnnounceJoinToRoom(data *Message, client *Client) {
+	self.Broadcast(&Message{
+		Action: "message",
+		Author: "server",
+		Body:   "<small><i>" + data.Author + "</i></small> has joined the room",
+	})
 }
 
 func checkNotExisting(users map[string]*Client, name string, client *Client) (*Message, bool) {
@@ -124,12 +138,4 @@ func checkNotExisting(users map[string]*Client, name string, client *Client) (*M
 		Action: "ACK",
 		Body:   "accepted",
 	}, true
-}
-
-func (self *Server) Broadcast(lock chan error, msg *Message) {
-	for _, client := range self.Clients {
-		msg.Mine = (msg.AuthorID == client.ID)
-		client.Write(lock, msg)
-		logger.Println("Broadcasting to: " + client.ID)
-	}
 }

@@ -129,6 +129,19 @@
                 }
             }
 
+            if (response.action === "heartbeat") {
+                if (response.body !== "ping") {
+                    $('.main-container').prepend('<div class="alert alert-short alert-danger">Received invalid heartbeat message. Potential server error. <a href="/">Reload?</a></div>');
+                }
+
+                socket.send(JSON.stringify({
+                    author: chosenUsername,
+                    action: "heartbeat",
+                    body: "pong"
+                }));
+                return;
+            }
+
             if (!joined) { return }
 
             if (response.mine) {
