@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="shortcut icon" href="../../assets/ico/favicon.ico">
+
+    <title>Elwyn</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="/css/bootstrap.min.css" rel="stylesheet">
+
+    <link href="/css/style.css" rel="stylesheet">
+
+    <!-- Just for debugging purposes. Don't actually copy this line! -->
+    <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+      <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  <style type="text/css"></style></head>
+
+  <body>
+
+    <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">Elwyn</a>
+        </div>
+        <div class="collapse navbar-collapse">
+          <ul class="nav navbar-nav">
+<!--             <li class="active"><a href="#">Home</a></li> -->
+          </ul>
+        </div><!--/.nav-collapse -->
+      </div>
+    </div>
+
+    <div class="main-container container-fluid">
+
+        <div class="row contents-row">
+            <div id="channel-contents" class="col-xs-8 col-xs-offset-2 col-md-8 col-md-offset-2 col-lg-8 col-lg-offset-2 col-xl-8 col-xl-offset-2"></div>
+        </div>
+
+        <div class="row">
+            <div id="input" class="col-xs-8 col-xs-offset-2 col-md-7 col-md-offset-2 col-lg-7 col-lg-offset-2 col-xl-7 col-xl-offset-2">
+                <input id="chat-input"></input>
+            </div>
+            <div class="col-xs-1 col-md-1 col-lg-1 col-xl-1">
+                <button id="send-button" class="btn btn-success" onclick="sendMessage();">Send</button>
+            </div>
+        </div>
+
+    </div><!-- /.container -->
+
+    <div class="join-modal modal fade">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <h4 class="modal-title">Join Room</h4>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="username-field" class="form-control" placeholder="username"></input>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="button" id="join-button" class="btn btn-primary" onclick="join();">Join</button>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="/js/jquery-2.1.1.min.js"></script>
+    <script src="/js/bootstrap.min.js"></script>
+
+    <script>
+        $('.contents-row').css('height', Math.ceil(window.innerHeight * 0.8) + 'px');
+        $("#chat-input").keyup(function(event){
+            if(event.keyCode == 13){
+                $("#send-button").click();
+            }
+        });
+        $("#username-field").keyup(function(event){
+            if(event.keyCode == 13){
+                $("#join-button").click();
+            }
+        });
+
+        var chosenUsername, joined = false;
+        $('.join-modal').modal();
+
+        var socket = new WebSocket('ws://' + window.location.host + '/chat');
+        // var socket = new WebSocket('ws://localhost:7654/chat');
+
+        socket.onopen = function (event) {
+            console.log("connected!");
+        };
+
+        socket.onerror = function (event) {
+            console.log('Got error')
+            addErrorAlert(event.data)
+        }
+
+        socket.onmessage = function (event) {
+            var response = JSON.parse(event.data);
+
+            if (response.action === 'ACK') {
+                if (response.body === 'exists') {
+                    $('.join-modal').prepend('<div class="alert alert-danger">Username in use</div>');
+                } else {
+                    $('.join-modal').modal('hide');
+                    joined = true;
+                    $('#channel-contents').append('<p class="server-message"><b>server:</b> welcome, ' + chosenUsername + '</p>');
+                    return;
+                }
+            }
+
+            if (!joined) { return }
+
+            if (response.mine) {
+                $('#channel-contents').append('<p class="mine"><i><b>Me:</b> ' + response.body + '</i></p>');
+            } else {
+                $('#channel-contents').append('<p><b>' + response.author + ':</b> ' + response.body + '</p>');
+            }
+        }
+
+        socket.onclose = function () {
+            console.log('Closed websocket');
+            addErrorAlert('Lost connection... <a href="/">Reload</a>')
+        }
+
+        function sendMessage() {
+            var message = $('#chat-input').val();
+            socket.send(JSON.stringify({
+                action: 'message',
+                author: chosenUsername,
+                body: message
+            }));
+            $('#chat-input').val('');
+        }
+
+        function addErrorAlert(message) {
+            $('.main-container').prepend('<div class="alert alert-short alert-danger">' + message + '</div>');
+        }
+
+        function join() {
+            var field = $('#username-field');
+            if (field.val() === '') {
+                $('.join-modal').prepend('<div class="alert alert-danger">You must supply a username</div>');
+                return;
+            }
+
+            chosenUsername = field.val();
+            socket.send(JSON.stringify({
+                action: 'join',
+                author: chosenUsername
+            }));
+        }
+    </script>
+
+
+</body></html>

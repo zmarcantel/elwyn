@@ -5,8 +5,9 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/zmarcantel/elwyn/chat"
 	"github.com/zmarcantel/elwyn/logging"
-	"github.com/zmarcantel/elwyn/routes"
+	"github.com/zmarcantel/elwyn/web"
 )
 
 const (
@@ -30,17 +31,26 @@ func main() {
 	// returns any errors to be caugh by the checkError function
 	checkError(cliInit(), "There was a command-line error", EXIT_CONFIG_ERR)
 
+	// start logging how that the system is initialized
+	// currently have no use for the actual logger object
+	var err error
+	logger, err = logging.Initialize(Config.LogPath, Config.Quiet)
+	checkError(err, "Could not load log file", EXIT_STARTUP_ERR)
+
 	// setup watchers for termination signals
 	var _, lock = initSignalWatchers()
 
-	// start logging how that the system is initialized
-	// currently have no use for the actual logger object
-	logger, err := logging.Initialize(Opts.LogPath, Opts.Quiet)
-	checkError(err, "Could not load log file", EXIT_STARTUP_ERR)
+	// start the web
+	web.Initialize(lock, logger, Config.Web.Port, Opts.Directory)
 
-	//
-	logger.Banner("Starting Server")
-	checkError(routes.Initialize(lock, logger, Opts.Port), "Failed to start HTTP Server", EXIT_STARTUP_ERR)
+	// start the chat server
+	chat.Initialize(lock, logger, Config.Chat.Port)
+
+	for {
+		err := <-lock
+		logger.Println("Error received on channel")
+		checkError(err, "Received error from server", EXIT_GENERAL_ERR)
+	}
 }
 
 //
@@ -48,9 +58,13 @@ func main() {
 //
 func checkError(actual error, text string, code int) {
 	if actual != nil {
-		fmt.Printf("%s:\n%s\n", text, actual)
-		Cleanup()
-		os.Exit(code)
+		if logger != nil {
+			logger.Errorf("%s:\n%s\n", text, actual)
+		} else {
+			fmt.Printf("Fatal error killed logger: %s\n", actual)
+		}
+
+		Cleanup(code)
 	}
 }
 
@@ -71,20 +85,12 @@ func initSignalWatchers() (sigLock chan os.Signal, deadLock chan error) {
 	go func() {
 		// we don't care about value here, just that a signal was caught
 		<-sigLock
-		fmt.Println("Exhibit received termination signal.")
-		Cleanup()
-		os.Exit(EXIT_NORMAL)
+		Cleanup(EXIT_NORMAL)
 	}()
 
 	// this functions spins up in a separate context
 	// blocks at first line of every iteration of for loop until an error is passed
 	// the for loop is included in the case on non-fatal errors -- keeps the system going
-	go func() {
-		for {
-			err := <-deadLock
-			checkError(err, "Received error from server", EXIT_GENERAL_ERR)
-		}
-	}()
 
 	return sigLock, deadLock
 }
@@ -93,6 +99,7 @@ func initSignalWatchers() (sigLock chan os.Signal, deadLock chan error) {
 // This function will clean up any open files, sockets, or other
 // resources still open
 //
-func Cleanup() {
+func Cleanup(code int) {
 	logging.Close()
+	os.Exit(code)
 }

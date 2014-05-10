@@ -88,6 +88,21 @@ func (self *Router) Warnln(v ...interface{}) {
 }
 
 //
+// Errors
+//
+func (self *Router) Error(v ...interface{}) {
+	self.err.Print(v...)
+}
+
+func (self *Router) Errorf(f string, v ...interface{}) {
+	self.err.Printf(f, v...)
+}
+
+func (self *Router) Errorln(v ...interface{}) {
+	self.err.Println(v...)
+}
+
+//
 // Utilities
 //
 

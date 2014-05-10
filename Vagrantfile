@@ -25,14 +25,16 @@ end
 
 $install_prereqs = <<SCRIPT
 apt-get install -y \
-    nginx mongodb make git
+    nginx mongodb make git mercurial
 SCRIPT
 
 $install_go = <<SCRIPT
-wget -q -nc https://go.googlecode.com/files/go1.2.1.linux-amd64.tar.gz
-tar -xzf go1.2.1.linux-amd64.tar.gz
-cp go/bin/* /usr/local/bin/
-cp -r go /usr/lib
+if test -e /usr/local/bin/go ; then \
+    wget -q -nc https://go.googlecode.com/files/go1.2.1.linux-amd64.tar.gz; \
+    tar -xzf go1.2.1.linux-amd64.tar.gz; \
+    cp go/bin/* /usr/local/bin/; \
+    cp -r go /usr/lib; \
+fi
 SCRIPT
 
 
@@ -40,8 +42,12 @@ $build_elwyn = <<SCRIPT
 export GOROOT=/usr/lib/go
 export GOPATH=/go
 
-ln -sf /vagrant /srv/elwyn
+rm -rf /srv/elwyn
+ln -sf /vagrant /srv/
+mv /srv/vagrant /srv/elwyn
+
 cd /srv/elwyn
+ln -sf `pwd` $GOPATH/src/github.com/zmarcantel/elwyn
 
 chown vagrant:vagrant -R .
 
@@ -52,5 +58,5 @@ cp -f deploy/upstart/local.conf /etc/init/elwyn.conf
 cp -f deploy/nginx/elwyn.conf /etc/nginx/sites-enabled/elwyn
 rm -f /etc/nginx/sites-enabled/default
 service elwyn restart
-service nginx restart
+service nginx reload
 SCRIPT

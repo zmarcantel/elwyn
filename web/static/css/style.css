@@ -1,0 +1,28 @@
+.main-container {
+  margin-top: 50px;
+}
+.contents-row {
+  margin-top: 3em;
+  height: 500px;
+  overflow-y: scroll;
+}
+.contents-row #channel-contents {
+  overflow-y: scroll;
+}
+.contents-row #channel-contents p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.contents-row #channel-contents p.mine {
+  color: #777;
+}
+.contents-row #channel-contents p.server-message {
+  color: #92A3FF;
+}
+#chat-input {
+  width: 100%;
+}
+.alert-short {
+  width: 50%;
+  margin-left: 25%;
+}
