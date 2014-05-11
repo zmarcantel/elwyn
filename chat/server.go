@@ -83,6 +83,7 @@ func (self *Server) Listen(lock chan error, port int) {
 					var res, created = checkNotExisting(self.Users, data.Author, client)
 					if created {
 						self.AnnounceJoinToRoom(data, client)
+						client.GenerateIcon()
 					}
 					client.Write(lock, res)
 					break

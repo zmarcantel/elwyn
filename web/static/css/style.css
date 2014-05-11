@@ -9,15 +9,27 @@
 .contents-row #channel-contents {
   overflow-y: scroll;
 }
-.contents-row #channel-contents p {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+.contents-row #channel-contents .message-row .message-wrapper {
+  min-height: 2em;
+  padding-left: 0;
 }
-.contents-row #channel-contents p.mine {
+.contents-row #channel-contents .message-row .message-wrapper p {
+  margin-top: 0.25em;
+}
+.contents-row #channel-contents .message-row .message-wrapper p.mine {
   color: #777;
 }
-.contents-row #channel-contents p.server-message {
+.contents-row #channel-contents .message-row .message-wrapper p.server-message {
   color: #92A3FF;
+}
+.contents-row #channel-contents .message-row .identicon-wrapper {
+  width: auto;
+  padding-left: 0;
+  padding-right: 0.5em;
+}
+.contents-row #channel-contents .message-row .identicon-wrapper .identicon {
+  width: auto;
+  height: 2em;
 }
 #chat-input {
   width: 100%;

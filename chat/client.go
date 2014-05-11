@@ -1,8 +1,14 @@
 package chat
 
 import (
+	"bytes"
+	"encoding/base64"
+	"image/color"
+	"image/png"
 	"io"
 	"time"
+
+	sigil "github.com/cupcake/sigil/gen"
 
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/go.net/websocket"
@@ -12,6 +18,22 @@ const (
 	DEFAULT_CLIENT_BUFFER int = 10
 )
 
+var identi = sigil.Sigil{
+	Rows: 5,
+	Foreground: []color.NRGBA{
+		rgb(45, 79, 255),
+		rgb(254, 180, 44),
+		rgb(226, 121, 234),
+		rgb(30, 179, 253),
+		rgb(232, 77, 65),
+		rgb(49, 203, 115),
+		rgb(141, 69, 170),
+	},
+	Background: rgb(255, 255, 255),
+}
+
+func rgb(r, g, b uint8) color.NRGBA { return color.NRGBA{r, g, b, 255} }
+
 type Client struct {
 	ID        string
 	Username  string
@@ -19,6 +41,7 @@ type Client struct {
 	Receive   chan *Message
 	Hangup    chan bool
 	Heartbeat chan *Message
+	Icon      string // base64 encoded
 }
 
 func (self *Client) Listen(lock chan error, done chan *Client) {
@@ -51,6 +74,7 @@ func (self *Client) Read(lock chan error) {
 		return
 	}
 	msg.AuthorID = self.ID
+	msg.Icon = self.Icon
 
 	switch msg.Action {
 	case "heartbeat":
@@ -96,6 +120,17 @@ func (self *Client) PingPong(lock chan error, serv *Server) {
 			}
 		}
 	}(serv)
+}
+
+func (self *Client) GenerateIcon() {
+	var image = identi.Make(100, true, []byte(self.Username))
+	var space = make([]byte, 0)
+	var buf = bytes.NewBuffer(space)
+	var result = base64.NewEncoder(base64.StdEncoding, buf)
+
+	buf.Write([]byte("data:image/png;base64,"))
+	png.Encode(result, image)
+	self.Icon = buf.String()
 }
 
 func NewClient(sock *websocket.Conn, pipe chan *Message) *Client {

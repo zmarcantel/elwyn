@@ -53,7 +53,8 @@
 
         <div class="row">
             <div id="input" class="col-xs-8 col-xs-offset-2 col-md-7 col-md-offset-2 col-lg-7 col-lg-offset-2 col-xl-7 col-xl-offset-2">
-                <input id="chat-input"></input>
+<!--                 <input id="chat-input"></input> -->
+                <textarea id="chat-input" name="chat-input" rows="1"></textarea>
             </div>
             <div class="col-xs-1 col-md-1 col-lg-1 col-xl-1">
                 <button id="send-button" class="btn btn-success" onclick="sendMessage();">Send</button>
@@ -88,11 +89,27 @@
     <script src="/js/bootstrap.min.js"></script>
 
     <script>
+        var shiftDown = false;
         $("#chat-input").keyup(function(event){
-            if(event.keyCode == 13){
-                $("#send-button").click();
+            if(event.keyCode == 16){
+                shiftDown = false;
             }
         });
+        $("#chat-input").keydown(function(event){
+            if(event.keyCode == 16){
+                shiftDown = true;
+            } else if (event.keyCode == 13) {
+                if (shiftDown) {
+                    var input = $('#chat-input');
+                    var currentRows = parseInt(input.attr('rows'));
+                    input.attr('rows', currentRows + 1);
+                } else {
+                    $("#send-button").click();
+                    $('#chat-input').attr('rows', 1);
+                }
+            }
+        });
+
         $("#username-field").keyup(function(event){
             if(event.keyCode == 13){
                 $("#join-button").click();
@@ -131,7 +148,7 @@
                 } else {
                     $('.join-modal').modal('hide');
                     joined = true;
-                    $('#channel-contents').append('<p class="server-message"><b>server:</b> welcome, ' + chosenUsername + '</p>');
+                    insertMessage('server', 'server-message', 'welcome, ' + chosenUsername, '');
                     return;
                 }
             }
@@ -151,13 +168,13 @@
 
             if (!joined) { return }
 
-            if (response.mine) {
-                $('#channel-contents').append('<p class="mine"><i><b>Me:</b> ' + response.body + '</i></p>');
-            } else if (response.author === 'server') {
-                $('#channel-contents').append('<p class="server-message"><i><b>' + response.author + ':</b> ' + response.body + '</i></p>');
-            } else {
-                $('#channel-contents').append('<p><b>' + response.author + ':</b> ' + response.body + '</p>');
-            }
+            insertMessage(
+                response.Mine ? 'Me' : response.author,
+                response.Mine ? 'mine' :
+                    (response.author == 'server' ? 'server-message' : 'general-message'),
+                response.body,
+                response.icon
+            );
         }
 
         socket.onclose = function () {
@@ -191,6 +208,25 @@
                 action: 'join',
                 author: chosenUsername
             }));
+        }
+
+        function insertMessage(author, type, message, icon) {
+            var tree = '<div class="message-row row">';
+
+            if (icon !== '') {
+                tree += '\
+                    <div class="identicon-wrapper col-xs-2 col-md-2 col-lg-1 col-xl-1">\
+                        <img class="identicon" src="' + icon + '"></img>\
+                    </div>';
+            }
+
+            tree += '\
+                    <div class="message-wrapper col-xs-10 col-md-10 col-lg-11 col-xl-11">\
+                        <p class="' + type + '"><i><b>' + author + ':</b> ' + message + '</i></p>\
+                    </div>\
+                </div>';
+
+            $('#channel-contents').append(tree);
         }
     </script>
 

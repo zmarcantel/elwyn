@@ -6,6 +6,7 @@ type Message struct {
 	Body     string `json:"body"`
 	Mine     bool   `json:"mine"`
 	Action   string `json:"action"`
+	Icon     string `json:"icon"`
 }
 
 func (self *Message) String() string {

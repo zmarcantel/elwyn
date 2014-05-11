@@ -24,7 +24,7 @@ todo:
 	@grep -nri "todo"
 
 %.css: %.less
-	@lessc $< > $@
+	lessc $< > $@
 
 install:
 	service $(PROG_NAME) stop
@@ -39,4 +39,4 @@ install:
 	@cp ./config.json /etc/$(PROG_NAME)/config.json
 	@cp deploy/nginx/elwyn.conf /etc/nginx/sites-enabled/elwyn
 	@service nginx reload
-	service $(PROG_NAME) start
+	@service $(PROG_NAME) start

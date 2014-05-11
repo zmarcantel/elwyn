@@ -11,17 +11,34 @@
     #channel-contents {
         overflow-y: scroll;
 
-        p {
-            margin-top: 0.5em;
-            margin-bottom: 0.5em;
-        }
+        .message-row {
+            .message-wrapper {
+                min-height: 2em;
+                padding-left: 0;
 
-        p.mine {
-            color: #777;
-        }
+                p {
+                    margin-top: 0.25em;
+                    // margin-bottom: 0.5em;
+                }
 
-        p.server-message {
-            color: #92A3FF;
+                p.mine {
+                    color: #777;
+                }
+
+                p.server-message {
+                    color: #92A3FF;
+                }
+            }
+
+            .identicon-wrapper {
+                width: auto;
+                padding-left: 0;
+                padding-right: 0.5em;
+                .identicon {
+                    width: auto;
+                    height: 2em;
+                }
+            }
         }
     }
 }

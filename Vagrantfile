@@ -25,7 +25,9 @@ end
 
 $install_prereqs = <<SCRIPT
 apt-get install -y \
-    nginx mongodb make git mercurial
+    nginx mongodb make git mercurial nodejs npm
+ln -s `which nodejs` /usr/local/bin/node
+npm install -g less
 SCRIPT
 
 $install_go = <<SCRIPT
