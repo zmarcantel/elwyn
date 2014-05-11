@@ -88,7 +88,6 @@
     <script src="/js/bootstrap.min.js"></script>
 
     <script>
-        $('.contents-row').css('height', Math.ceil(window.innerHeight * 0.8) + 'px');
         $("#chat-input").keyup(function(event){
             if(event.keyCode == 13){
                 $("#send-button").click();
@@ -103,8 +102,16 @@
         var chosenUsername, joined = false;
         $('.join-modal').modal();
 
-        var socket = new WebSocket('ws://' + window.location.host + '/chat');
-        // var socket = new WebSocket('ws://localhost:7654/chat');
+        var host = window.location.host;
+        var portIndex = host.indexOf(':');
+        host = (portIndex > 0) ? (host.substring(0, portIndex) + ':7654') : host;
+        var socket = new WebSocket('ws://' + host + '/chat');
+
+        resize();
+        $( window ).resize(resize);
+        function resize() {
+            $('.contents-row').css('height', Math.ceil(window.innerHeight * 0.8) + 'px');
+        }
 
         socket.onopen = function (event) {
             console.log("connected!");
@@ -146,6 +153,8 @@
 
             if (response.mine) {
                 $('#channel-contents').append('<p class="mine"><i><b>Me:</b> ' + response.body + '</i></p>');
+            } else if (response.author === 'server') {
+                $('#channel-contents').append('<p class="server-message"><i><b>' + response.author + ':</b> ' + response.body + '</i></p>');
             } else {
                 $('#channel-contents').append('<p><b>' + response.author + ':</b> ' + response.body + '</p>');
             }

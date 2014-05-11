@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-martini/martini"
+	"github.com/martini-contrib/gzip"
 	"github.com/martini-contrib/render"
 
 	"github.com/zmarcantel/elwyn/logging"
@@ -31,6 +32,8 @@ func Initialize(lock chan error, logger *logging.Router, port int, directory str
 
 func RegisterMiddleware(m *martini.ClassicMartini, directory string) {
 	var webDir = filepath.Join(directory, "web")
+
+	m.Use(gzip.All())
 
 	m.Use(render.Renderer(render.Options{
 		Directory:       filepath.Join(webDir, "views"),

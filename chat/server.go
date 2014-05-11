@@ -74,20 +74,15 @@ func (self *Server) Listen(lock chan error, port int) {
 				delete(self.Clients, leaving.ID)
 				delete(self.Users, leaving.Username)
 				logger.Printf("Signing off: %s\n", leaving.ID)
-				self.Broadcast(&Message{
-					Action: "message",
-					Author: "server",
-					Body:   "<small><i>" + leaving.Username + "</i></small> has left the room",
-				})
+				self.AnnounceLeaveToRoom(leaving)
 				break
 
 			case data := <-self.Receive:
 				if data.Action == "join" {
 					var client = self.Clients[data.AuthorID]
 					var res, created = checkNotExisting(self.Users, data.Author, client)
-					self.AnnounceJoinToRoom(data, client)
 					if created {
-
+						self.AnnounceJoinToRoom(data, client)
 					}
 					client.Write(lock, res)
 					break
@@ -107,10 +102,10 @@ func (self *Server) Listen(lock chan error, port int) {
 	lock <- http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }
 
-func (self *Server) Broadcast(msg *Message) {
+func (self *Server) Broadcast(message *Message) {
 	for _, client := range self.Clients {
-		msg.Mine = (msg.AuthorID == client.ID)
-		client.Write(self.Error, msg)
+		message.Mine = (message.AuthorID == client.ID)
+		client.Write(self.Error, message)
 	}
 }
 
@@ -119,6 +114,14 @@ func (self *Server) AnnounceJoinToRoom(data *Message, client *Client) {
 		Action: "message",
 		Author: "server",
 		Body:   "<small><i>" + data.Author + "</i></small> has joined the room",
+	})
+}
+
+func (self *Server) AnnounceLeaveToRoom(leaving *Client) {
+	self.Broadcast(&Message{
+		Action: "message",
+		Author: "server",
+		Body:   "<small><i>" + leaving.Username + "</i></small> has left the room",
 	})
 }
 

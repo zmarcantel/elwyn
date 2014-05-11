@@ -41,7 +41,7 @@ func (self *Client) Read(lock chan error) {
 	var msg Message
 	var err = websocket.JSON.Receive(self.Socket, &msg)
 
-	if err != nil {
+	if err != nil && err.Error() != ErrClosedNetwork {
 		if err == io.EOF {
 			self.Hangup <- true
 			return
@@ -51,7 +51,6 @@ func (self *Client) Read(lock chan error) {
 		return
 	}
 	msg.AuthorID = self.ID
-	msg.Owner = self
 
 	switch msg.Action {
 	case "heartbeat":
@@ -67,16 +66,10 @@ func (self *Client) Read(lock chan error) {
 }
 
 func (self *Client) Write(lock chan error, msg *Message) {
-	var err = websocket.JSON.Send(self.Socket, *msg)
+	var err = websocket.JSON.Send(self.Socket, msg)
 
-	if err == nil {
-		// TODO: better casing
-	} else if err != nil {
-		if err.Error() != ErrClosedNetwork {
-			logger.Errorln("Attempted to use closed socket")
-			logger.Warnln(err)
-		}
-
+	if err != nil && err.Error() != ErrClosedNetwork {
+		logger.Errorln(err)
 		lock <- err
 		return
 	}

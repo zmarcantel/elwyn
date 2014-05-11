@@ -27,6 +27,7 @@ todo:
 	@lessc $< > $@
 
 install:
+	service $(PROG_NAME) stop
 	@if test "$(PREFIX)" = "" ; then \
 		cp bin/$(PROG_NAME) $(DEFAULT_INSTALL)/$(PROG_NAME) ; \
 	else \
@@ -38,3 +39,4 @@ install:
 	@cp ./config.json /etc/$(PROG_NAME)/config.json
 	@cp deploy/nginx/elwyn.conf /etc/nginx/sites-enabled/elwyn
 	@service nginx reload
+	service $(PROG_NAME) start

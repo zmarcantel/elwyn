@@ -6,7 +6,6 @@ type Message struct {
 	Body     string `json:"body"`
 	Mine     bool   `json:"mine"`
 	Action   string `json:"action"`
-	Owner    *Client
 }
 
 func (self *Message) String() string {
