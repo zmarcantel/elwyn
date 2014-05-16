@@ -21,6 +21,7 @@ const (
 // Global variables
 //
 var logger *logging.Router
+var persistence chat.Database
 
 //
 // Main entry point
@@ -44,7 +45,7 @@ func main() {
 	web.Initialize(lock, logger, Config.Web.Port, Opts.Directory)
 
 	// start the chat server
-	chat.Initialize(lock, logger, Config.Chat.Port)
+	persistence = chat.Initialize(lock, logger, Config.Chat.Port)
 
 	for {
 		err := <-lock
@@ -100,6 +101,7 @@ func initSignalWatchers() (sigLock chan os.Signal, deadLock chan error) {
 // resources still open
 //
 func Cleanup(code int) {
+	persistence.Close()
 	logging.Close()
 	os.Exit(code)
 }

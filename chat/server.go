@@ -7,6 +7,8 @@ import (
 	"code.google.com/p/go.net/websocket"
 
 	"github.com/zmarcantel/elwyn/logging"
+	"github.com/zmarcantel/elwyn/chat/common"
+	"github.com/zmarcantel/elwyn/chat/databases/file"
 )
 
 const (
@@ -25,20 +27,27 @@ type Server struct {
 	Users   map[string]*Client
 	Join    chan *Client
 	Leave   chan *Client
-	Receive chan *Message
+	Receive chan *common.Message
 	Error   chan error
+    backing Database
 }
 
-func Initialize(lock chan error, log *logging.Router, port int) {
+func Initialize(lock chan error, log *logging.Router, port int)  Database {
 	logger = log
+    var fileBacking, err = file.Open("./messages.store")
+    if err != nil {
+        lock <- err
+        return nil
+    }
 
 	server = &Server{
 		Clients: make(map[string]*Client),
 		Users:   make(map[string]*Client),
 		Join:    make(chan *Client, DEFAULT_ENTRANCE_BUFFER),
 		Leave:   make(chan *Client, DEFAULT_ENTRANCE_BUFFER),
-		Receive: make(chan *Message, DEFAULT_MESSAGE_BUFFER),
+		Receive: make(chan *common.Message, DEFAULT_MESSAGE_BUFFER),
 		Error:   lock,
+        backing: fileBacking,
 	}
 
 	http.Handle("/chat", websocket.Handler(func(ws *websocket.Conn) {
@@ -57,7 +66,8 @@ func Initialize(lock chan error, log *logging.Router, port int) {
 	}))
 
 	logger.Banner("Starting Chat Server")
-	server.Listen(lock, port)
+	go server.Listen(lock, port)
+    return fileBacking
 }
 
 func (self *Server) Listen(lock chan error, port int) {
@@ -71,6 +81,9 @@ func (self *Server) Listen(lock chan error, port int) {
 				break
 
 			case leaving := <-self.Leave:
+                if (leaving == nil || leaving.Username == "") {
+                    continue
+                }
 				delete(self.Clients, leaving.ID)
 				delete(self.Users, leaving.Username)
 				logger.Printf("Signing off: %s\n", leaving.ID)
@@ -79,16 +92,10 @@ func (self *Server) Listen(lock chan error, port int) {
 
 			case data := <-self.Receive:
 				if data.Action == "join" {
-					var client = self.Clients[data.AuthorID]
-					var res, created = checkNotExisting(self.Users, data.Author, client)
-					if created {
-						self.AnnounceJoinToRoom(data, client)
-						client.GenerateIcon()
-					}
-					client.Write(lock, res)
-					break
+                    self.HandleJoin(data)
+					continue
 				}
-
+                self.backing.Write(data)
 				logger.Println("Broadcasting message")
 				self.Broadcast(data)
 				break
@@ -103,33 +110,43 @@ func (self *Server) Listen(lock chan error, port int) {
 	lock <- http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }
 
-func (self *Server) Broadcast(message *Message) {
+func (self *Server) Broadcast(message *common.Message) {
 	for _, client := range self.Clients {
 		message.Mine = (message.AuthorID == client.ID)
 		client.Write(self.Error, message)
 	}
 }
 
-func (self *Server) AnnounceJoinToRoom(data *Message, client *Client) {
-	self.Broadcast(&Message{
+func (self *Server) AnnounceJoinToRoom(data *common.Message, client *Client) {
+	self.Broadcast(&common.Message{
 		Action: "message",
-		Author: "server",
-		Body:   "<small><i>" + data.Author + "</i></small> has joined the room",
+		Sender: "server",
+		Body:   "<small><i>" + data.Sender + "</i></small> has joined the room",
 	})
 }
 
+func (self *Server) HandleJoin(data *common.Message) {
+    var client = self.Clients[data.AuthorID]
+    var res, created = checkNotExisting(self.Users, data.Sender, client)
+    if created {
+        self.AnnounceJoinToRoom(data, client)
+        client.GenerateIcon()
+    }
+    client.Write(self.Error, res)
+}
+
 func (self *Server) AnnounceLeaveToRoom(leaving *Client) {
-	self.Broadcast(&Message{
+	self.Broadcast(&common.Message{
 		Action: "message",
-		Author: "server",
+		Sender: "server",
 		Body:   "<small><i>" + leaving.Username + "</i></small> has left the room",
 	})
 }
 
-func checkNotExisting(users map[string]*Client, name string, client *Client) (*Message, bool) {
+func checkNotExisting(users map[string]*Client, name string, client *Client) (*common.Message, bool) {
 	if _, exists := users[name]; exists {
-		return &Message{
-			Author: "server",
+		return &common.Message{
+			Sender: "server",
 			Action: "ACK",
 			Body:   "exists",
 		}, false
@@ -137,9 +154,10 @@ func checkNotExisting(users map[string]*Client, name string, client *Client) (*M
 
 	users[name] = client
 	client.Username = name
-	return &Message{
-		Author: "server",
+	return &common.Message{
+		Sender: "server",
 		Action: "ACK",
 		Body:   "accepted",
 	}, true
 }
+

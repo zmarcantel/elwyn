@@ -57,7 +57,7 @@
                 <textarea id="chat-input" name="chat-input" rows="1"></textarea>
             </div>
             <div class="col-xs-1 col-md-1 col-lg-1 col-xl-1">
-                <button id="send-button" class="btn btn-success" onclick="sendMessage();">Send</button>
+                <button id="send-button" class="btn btn-success" onclick="chatSocket.send();">Send</button>
             </div>
         </div>
 
@@ -75,7 +75,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="button" id="join-button" class="btn btn-primary" onclick="join();">Join</button>
+                    <button type="button" id="join-button" class="btn btn-primary" onclick="chatSocket.join();">Join</button>
                 </div>
             </div><!-- /.modal-content -->
         </div><!-- /.modal-dialog -->
@@ -87,148 +87,14 @@
     <!-- Placed at the end of the document so the pages load faster -->
     <script src="/js/jquery-2.1.1.min.js"></script>
     <script src="/js/bootstrap.min.js"></script>
+    <script src="/js/expanding.min.js"></script>
+    <script src="/js/socket.js"></script>
+    <script src="/js/ui.js"></script>
 
     <script>
-        var shiftDown = false;
-        $("#chat-input").keyup(function(event){
-            if(event.keyCode == 16){
-                shiftDown = false;
-            }
+        var chatSocket;
+        $(document).ready(function(){
+            chatSocket = new ElwynSocket(/*undefined defaults to same host*/);
         });
-        $("#chat-input").keydown(function(event){
-            if(event.keyCode == 16){
-                shiftDown = true;
-            } else if (event.keyCode == 13) {
-                if (shiftDown) {
-                    var input = $('#chat-input');
-                    var currentRows = parseInt(input.attr('rows'));
-                    input.attr('rows', currentRows + 1);
-                } else {
-                    $("#send-button").click();
-                    $('#chat-input').attr('rows', 1);
-                }
-            }
-        });
-
-        $("#username-field").keyup(function(event){
-            if(event.keyCode == 13){
-                $("#join-button").click();
-            }
-        });
-
-        var chosenUsername, joined = false;
-        $('.join-modal').modal();
-
-        var host = window.location.host;
-        var portIndex = host.indexOf(':');
-        host = (portIndex > 0) ? (host.substring(0, portIndex) + ':7654') : host;
-        var socket = new WebSocket('ws://' + host + '/chat');
-
-        resize();
-        $( window ).resize(resize);
-        function resize() {
-            $('.contents-row').css('height', Math.ceil(window.innerHeight * 0.8) + 'px');
-        }
-
-        socket.onopen = function (event) {
-            console.log("connected!");
-        };
-
-        socket.onerror = function (event) {
-            console.log('Got error')
-            addErrorAlert(event.data)
-        }
-
-        socket.onmessage = function (event) {
-            var response = JSON.parse(event.data);
-
-            if (response.action === 'ACK') {
-                if (response.body === 'exists') {
-                    $('.join-modal').prepend('<div class="alert alert-danger">Username in use</div>');
-                } else {
-                    $('.join-modal').modal('hide');
-                    joined = true;
-                    insertMessage('server', 'server-message', 'welcome, ' + chosenUsername, '');
-                    return;
-                }
-            }
-
-            if (response.action === "heartbeat") {
-                if (response.body !== "ping") {
-                    $('.main-container').prepend('<div class="alert alert-short alert-danger">Received invalid heartbeat message. Potential server error. <a href="/">Reload?</a></div>');
-                }
-
-                socket.send(JSON.stringify({
-                    author: chosenUsername,
-                    action: "heartbeat",
-                    body: "pong"
-                }));
-                return;
-            }
-
-            if (!joined) { return }
-
-            insertMessage(
-                response.Mine ? 'Me' : response.author,
-                response.Mine ? 'mine' :
-                    (response.author == 'server' ? 'server-message' : 'general-message'),
-                response.body,
-                response.icon
-            );
-        }
-
-        socket.onclose = function () {
-            console.log('Closed websocket');
-            addErrorAlert('Lost connection... <a href="/">Reload</a>')
-        }
-
-        function sendMessage() {
-            var message = $('#chat-input').val();
-            socket.send(JSON.stringify({
-                action: 'message',
-                author: chosenUsername,
-                body: message
-            }));
-            $('#chat-input').val('');
-        }
-
-        function addErrorAlert(message) {
-            $('.main-container').prepend('<div class="alert alert-short alert-danger">' + message + '</div>');
-        }
-
-        function join() {
-            var field = $('#username-field');
-            if (field.val() === '') {
-                $('.join-modal').prepend('<div class="alert alert-danger">You must supply a username</div>');
-                return;
-            }
-
-            chosenUsername = field.val();
-            socket.send(JSON.stringify({
-                action: 'join',
-                author: chosenUsername
-            }));
-        }
-
-        function insertMessage(author, type, message, icon) {
-            var tree = '<div class="message-row row">';
-
-            if (icon !== '') {
-                tree += '\
-                    <div class="identicon-wrapper col-xs-2 col-md-2 col-lg-1 col-xl-1">\
-                        <img class="identicon" src="' + icon + '"></img>\
-                    </div>';
-            }
-
-            tree += '\
-                    <div class="message-wrapper col-xs-10 col-md-10 col-lg-11 col-xl-11">\
-                        <p class="' + type + '"><i><b>' + author + ':</b> ' + message + '</i></p>\
-                    </div>\
-                </div>';
-
-            $('#channel-contents').append(tree);
-        }
     </script>
-
-
 </body></html>

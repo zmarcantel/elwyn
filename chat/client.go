@@ -3,12 +3,12 @@ package chat
 import (
 	"bytes"
 	"encoding/base64"
-	"image/color"
-	"image/png"
 	"io"
 	"time"
 
-	sigil "github.com/cupcake/sigil/gen"
+    "github.com/zmarcantel/elwyn/chat/common"
+
+    "github.com/dgryski/go-identicon"
 
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/go.net/websocket"
@@ -18,30 +18,21 @@ const (
 	DEFAULT_CLIENT_BUFFER int = 10
 )
 
-var identi = sigil.Sigil{
-	Rows: 5,
-	Foreground: []color.NRGBA{
-		rgb(45, 79, 255),
-		rgb(254, 180, 44),
-		rgb(226, 121, 234),
-		rgb(30, 179, 253),
-		rgb(232, 77, 65),
-		rgb(49, 203, 115),
-		rgb(141, 69, 170),
-	},
-	Background: rgb(255, 255, 255),
+var identiconSalt = []byte{
+    0x00, 0x11, 0x22, 0x33,
+    0x44, 0x55, 0x66, 0x77,
+    0x88, 0x99, 0xAA, 0xBB,
+    0xCC, 0xDD, 0xEE, 0xFF,
 }
-
-func rgb(r, g, b uint8) color.NRGBA { return color.NRGBA{r, g, b, 255} }
 
 type Client struct {
 	ID        string
 	Username  string
 	Socket    *websocket.Conn
-	Receive   chan *Message
+	Receive   chan *common.Message
 	Hangup    chan bool
-	Heartbeat chan *Message
-	Icon      string // base64 encoded
+	Heartbeat chan *common.Message
+	Icon      string // string of base64 encoded image
 }
 
 func (self *Client) Listen(lock chan error, done chan *Client) {
@@ -61,7 +52,7 @@ func (self *Client) Listen(lock chan error, done chan *Client) {
 }
 
 func (self *Client) Read(lock chan error) {
-	var msg Message
+	var msg common.Message
 	var err = websocket.JSON.Receive(self.Socket, &msg)
 
 	if err != nil && err.Error() != ErrClosedNetwork {
@@ -73,6 +64,8 @@ func (self *Client) Read(lock chan error) {
 		lock <- err
 		return
 	}
+
+    msg.Time = time.Now()
 	msg.AuthorID = self.ID
 	msg.Icon = self.Icon
 
@@ -89,7 +82,7 @@ func (self *Client) Read(lock chan error) {
 	}
 }
 
-func (self *Client) Write(lock chan error, msg *Message) {
+func (self *Client) Write(lock chan error, msg *common.Message) {
 	var err = websocket.JSON.Send(self.Socket, msg)
 
 	if err != nil && err.Error() != ErrClosedNetwork {
@@ -100,9 +93,9 @@ func (self *Client) Write(lock chan error, msg *Message) {
 }
 
 func (self *Client) Ping(lock chan error) {
-	self.Write(lock, &Message{
+	self.Write(lock, &common.Message{
 		Action: "heartbeat",
-		Author: "server",
+		Sender: "server",
 		Body:   "ping",
 	})
 }
@@ -123,17 +116,17 @@ func (self *Client) PingPong(lock chan error, serv *Server) {
 }
 
 func (self *Client) GenerateIcon() {
-	var image = identi.Make(100, true, []byte(self.Username))
-	var space = make([]byte, 0)
-	var buf = bytes.NewBuffer(space)
-	var result = base64.NewEncoder(base64.StdEncoding, buf)
+	var buf = bytes.NewBuffer(make([]byte, 0))
+	var encoded = base64.NewEncoder(base64.StdEncoding, buf)
 
 	buf.Write([]byte("data:image/png;base64,"))
-	png.Encode(result, image)
-	self.Icon = buf.String()
+    icon := identicon.New5x5(identiconSalt)
+    pngdata := icon.Render([]byte(self.Username))
+    encoded.Write(pngdata)
+    self.Icon = buf.String()
 }
 
-func NewClient(sock *websocket.Conn, pipe chan *Message) *Client {
+func NewClient(sock *websocket.Conn, pipe chan *common.Message) *Client {
 	if sock == nil {
 		logger.Errorln("Received nil socket")
 		return nil
@@ -144,6 +137,6 @@ func NewClient(sock *websocket.Conn, pipe chan *Message) *Client {
 		Socket:    sock,
 		Receive:   pipe,
 		Hangup:    make(chan bool, 0), // blocks until read
-		Heartbeat: make(chan *Message, 0),
+		Heartbeat: make(chan *common.Message, 0), // TODO: test conditions of blocking and missing heartbeat
 	}
 }
