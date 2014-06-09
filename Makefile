@@ -1,42 +1,131 @@
 PROG_NAME=elwyn
+OUT_DIR=bin
 DEFAULT_INSTALL=/usr/local/bin
-LESS_FILES=$(wildcard web/static/css/*.less)
-CSS_FILES=$(LESS_FILES:.less=.css)
 
-default: deps fmt less
-	@go build -o bin/$(PROG_NAME)
+LESS_FILES=$(wildcard client/css/*.less)
+CSS_FILES=$(LESS_FILES:.less=.css)
+CLIENT_JS_FILES=$(wildcard client/js/*.js)
+HTML_FILES=client/views/*
+
+VAGRANT_KEY=~/.vagrant.d/insecure_private_key
+VAGRANT_INVENTORY=./.vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory
+
+ANS_ENV_LOCAL=ANSIBLE_HOST_KEY_CHECKING=False
+ANS_OPTS_LOCAL=--private-key=$(VAGRANT_KEY) --user=vagrant -i $(VAGRANT_INVENTORY)
+LOCAL_ANSIBLE=$(ANS_ENV_LOCAL) ansible-playbook $(ANS_OPTS_LOCAL)
+
+LESS=./node_modules/less/bin/lessc
+MINIFY=node ./node_modules/minifier/index.js
+
+##
+## General Top-Level
+##
+
+default: sane-output deps fmt binary client
+
+sane-output:
+	mkdir -p $(OUT_DIR)
+	mkdir -p $(OUT_DIR)/views
+	mkdir -p $(OUT_DIR)/js
+	mkdir -p $(OUT_DIR)/css
+
+binary:
+	@go build -o $(OUT_DIR)/$(PROG_NAME) ./src/
+	@echo "***** Binary Built"
 
 run: default
-	@bin/elwyn -d ./ -l ./logs
+	@$(OUT_DIR)/elwyn -d $(OUT_DIR) -l ./logs
 
 deps:
-	@go list -f "{{ range .Deps }}{{ . }} {{ end }}" ./ | tr ' ' '\n' | awk '!/^.\//' | xargs go get
-
-fmt:
-	@go fmt
-
-less: $(CSS_FILES)
+	@depman
+	@npm install
+	@echo "***** Dependencies Met"
 
 clean:
-	@rm -rf logs bin
+	@rm -rf logs $(OUT_DIR) node_modules
+	@go clean ./src/
 
 todo:
 	@grep -nri "todo"
 
-%.css: %.less
-	lessc $< > $@
+##
+## Installation
+##
 
-install:
-	service $(PROG_NAME) stop
+install: default directories install-binary install-client
+
+directories:
+	@mkdir -p /srv/$(PROG_NAME)
+
+stop-service:
+	@-service elwyn stop
+
+install-binary: stop-service
 	@if test "$(PREFIX)" = "" ; then \
-		cp bin/$(PROG_NAME) $(DEFAULT_INSTALL)/$(PROG_NAME) ; \
+		cp $(OUT_DIR)/$(PROG_NAME) $(DEFAULT_INSTALL)/$(PROG_NAME) ; \
 	else \
-		cp bin/$(PROG_NAME) $(PREFIX)/$(PROG_NAME); \
+		cp $(OUT_DIR)/$(PROG_NAME) $(PREFIX)/$(PROG_NAME); \
 	fi
-	@mkdir -p /etc/$(PROG_NAME)/web
-	@cp -r ./web/static /etc/$(PROG_NAME)/web/
-	@cp -r ./web/views /etc/$(PROG_NAME)/web/
-	@cp ./config.json /etc/$(PROG_NAME)/config.json
-	@cp deploy/nginx/elwyn.conf /etc/nginx/sites-enabled/elwyn
-	@service nginx reload
-	@service $(PROG_NAME) start
+
+install-client:
+	@cp -r $(OUT_DIR)/* /srv/$(PROG_NAME)/
+
+
+##
+## Go Related
+##
+
+fmt:
+	@go fmt ./src/
+
+##
+## Client
+##
+
+client: stylesheet javascript static-js html
+	@cp client/config.json $(OUT_DIR)/
+	@echo "***** Client Finished"
+
+stylesheet: $(CSS_FILES)
+	@echo "***** LESS Compiled"
+	@cp client/css/*.css $(OUT_DIR)/css/
+
+%.css: %.less
+	@$(LESS) $< > $(OUT_DIR)/css/$(notdir $@)
+
+clean-js:
+	@rm -f $(OUT_DIR)/js/app.js
+
+javascript: clean-js $(OUT_DIR)/js/app.js
+	@echo "***** Javascript Merged and Minified"
+
+# $(OUT_DIR)/js/app.js: $(CLIENT_JS_FILES)
+
+$(OUT_DIR)/js/app.js:
+	@cat $(CLIENT_JS_FILES) >> $(OUT_DIR)/js/app.js
+
+$(OUT_DIR)/js/app.min.js: $(OUT_DIR)/js/app.js
+	@$(MINIFY) --output $(OUT_DIR)/js/app.min.js $(OUT_DIR)/js/app.js
+
+html:
+	@cp $(HTML_FILES) $(OUT_DIR)/views/
+
+static-js:
+	@cp client/deps/*.js $(OUT_DIR)/js/
+
+
+##
+## Local Environments
+##
+
+vm:
+	@vagrant up
+
+local: vm
+	$(LOCAL_ANSIBLE) ansible/all.yml
+
+local-db: vm
+	$(LOCAL_ANSIBLE) ansible/db.yml
+
+local-api: vm
+	@$(LOCAL_ANSIBLE) ansible/api.yml

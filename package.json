@@ -1,0 +1,24 @@
+{
+  "name": "elwyn",
+  "version": "0.0.1",
+  "description": "Elwyn chat server reference client",
+  "main": "index.js",
+  "dependencies": {
+    "minifier": "^0.6.0",
+    "less": "^1.7.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zmarcantel/elwyn.git"
+  },
+  "author": "Zach Marcantel",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/zmarcantel/elwyn/issues"
+  },
+  "homepage": "https://github.com/zmarcantel/elwyn"
+}
